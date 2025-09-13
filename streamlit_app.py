@@ -70,6 +70,13 @@ class StevesAdvancedAnalyzer:
             
             hourly_data = yf.download(self.symbol, start=start_date_hourly, end=end_date, 
                                     interval='1h', progress=False, auto_adjust=True, prepost=False)
+            
+            # If primary fails, try with different parameters
+            if hourly_data.empty:
+                st.write("Retrying hourly data with different parameters...")
+                hourly_data = yf.download(self.symbol, start=start_date_hourly, end=end_date, 
+                                        interval='1h', progress=False)
+            
             progress_bar.progress(90)
             
             if hourly_data.empty:
