@@ -441,7 +441,7 @@ def create_visualizations(results, market_hours):
 def display_key_findings(results):
     """Display Steve's key findings in an organized way"""
     
-    st.header("🎯 Steve's Key Findings")
+    st.header("Key Findings")
     
     # Top-level metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -490,7 +490,7 @@ def display_key_findings(results):
     insights = results['insights']
     
     st.info(f"""
-    **Steve's "Small Moves" Question**: ✅ CONFIRMED
+    **"Small Moves" Question**: ✅ CONFIRMED
     - Average absolute hourly move: **{insights['avg_abs_hourly_move']:.3f}%**
     - Median absolute hourly move: **{insights['median_abs_hourly_move']:.3f}%**
     - 🎯 Yes, hourly moves are indeed small (< 0.1% average)
@@ -514,7 +514,7 @@ def display_sidebar():
     """Display sidebar with information and controls"""
     
     with st.sidebar:
-        st.header("📊 Steve's SPY Analysis")
+        st.header("SPY Analysis")
         
         st.info("""
         **What This Analyzes:**
@@ -556,7 +556,7 @@ def display_sidebar():
 def main():
     """Main application for Steve's analysis"""
     
-    st.title("📊 Steve's SPY Statistical Analysis")
+    st.title("SPY Statistical Analysis")
     st.markdown("*20-Year Hourly Pattern Analysis with Standard Deviation Buckets*")
     
     # Display sidebar
