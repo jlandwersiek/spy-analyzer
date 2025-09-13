@@ -1,9 +1,9 @@
 # streamlit_app.py
 """
-Steve's Complete SPY Statistical Analysis Tool
+Complete SPY Statistical Analysis Tool
 Analyzes 20 years of SPY data for hourly patterns by standard deviation buckets
 
-GitHub: https://github.com/jlandwersiek/steves-spy-analyzer
+GitHub: https://github.com/jlandwersiek/spy-analyzer
 Deployed on Streamlit Cloud for easy access
 """
 
@@ -22,7 +22,7 @@ warnings.filterwarnings('ignore')
 
 # Set up the page
 st.set_page_config(
-    page_title="Steve's SPY Statistical Analysis",
+    page_title="SPY Statistical Analysis",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
