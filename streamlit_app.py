@@ -1,7 +1,7 @@
-# streamlit_app.py - SIMPLE WORKING VERSION
+# streamlit_app.py - ULTRA SIMPLE VERSION
 """
-Steve's SPY Statistical Analysis Tool - BULLETPROOF VERSION
-Fixed all KeyError issues with simple, robust data processing
+SPY Hourly Pattern Analysis - Ultra Simple Interface
+Answers specific research questions about intraday trading patterns
 """
 
 import pandas as pd
@@ -15,379 +15,237 @@ warnings.filterwarnings('ignore')
 
 # Set up the page
 st.set_page_config(
-    page_title="Steve's SPY Statistical Analysis",
+    page_title="SPY Pattern Analysis",
     page_icon="📊",
-    layout="wide"
+    layout="centered"  # Changed to centered for simpler look
 )
 
-def fetch_spy_data():
-    """Simple, bulletproof data fetching"""
-    
-    st.write("📊 Fetching SPY data...")
-    progress = st.progress(0)
-    
+def fetch_data():
+    """Simple data fetching"""
     try:
-        # Get 5 years of daily data (more reliable than 20 years)
+        # Get 3 years of data for reliability
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=5*365)
+        start_date = end_date - timedelta(days=3*365)
         
-        # Fetch daily data
-        daily_data = yf.download("SPY", start=start_date, end=end_date, interval='1d', progress=False)
-        progress.progress(30)
+        # Daily data
+        daily = yf.download("SPY", start=start_date, end=end_date, interval='1d', progress=False)
+        if hasattr(daily.columns, 'droplevel'):
+            daily.columns = daily.columns.droplevel(1)
         
-        if daily_data.empty:
-            return None, None, "Failed to fetch daily data"
+        daily['Daily_Return'] = daily['Close'].pct_change() * 100
+        daily['Day_Type'] = np.where(daily['Daily_Return'] >= 0, 'UP', 'DOWN')
+        daily = daily.dropna()
         
-        # Clean column names
-        if hasattr(daily_data.columns, 'droplevel'):
-            daily_data.columns = daily_data.columns.droplevel(1)
-        
-        # Calculate daily returns
-        daily_data['Daily_Return'] = daily_data['Close'].pct_change() * 100
-        daily_data['Day_Type'] = np.where(daily_data['Daily_Return'] >= 0, 'UP', 'DOWN')
-        daily_data = daily_data.dropna()
-        
-        progress.progress(70)
-        
-        # Fetch hourly data (last 6 months for reliability)
+        # Hourly data (6 months)
         hourly_start = end_date - timedelta(days=180)
-        hourly_data = yf.download("SPY", start=hourly_start, end=end_date, interval='1h', progress=False)
+        hourly = yf.download("SPY", start=hourly_start, end=end_date, interval='1h', progress=False)
+        if hasattr(hourly.columns, 'droplevel'):
+            hourly.columns = hourly.columns.droplevel(1)
         
-        if hourly_data.empty:
-            return daily_data, None, "Failed to fetch hourly data"
-        
-        # Clean column names
-        if hasattr(hourly_data.columns, 'droplevel'):
-            hourly_data.columns = hourly_data.columns.droplevel(1)
-        
-        progress.progress(100)
-        
-        st.success(f"✅ Got {len(daily_data)} days and {len(hourly_data)} hours of data")
-        
-        return daily_data, hourly_data, None
-        
-    except Exception as e:
-        return None, None, f"Data fetch error: {str(e)}"
+        return daily, hourly
+    except:
+        return None, None
 
-def process_data_simple(daily_data, hourly_data):
-    """Simple data processing that avoids all KeyError issues"""
-    
-    st.write("🔧 Processing data...")
-    
+def process_data(daily, hourly):
+    """Simple data processing"""
     try:
-        # Calculate daily standard deviation
-        daily_std = daily_data['Daily_Return'].std()
-        st.write(f"📊 Daily Standard Deviation: {daily_std:.2f}%")
+        daily_std = daily['Daily_Return'].std()
         
-        # Process hourly data step by step
-        hourly_list = []
+        # Process hourly data simply
+        results = []
+        prev_close = None
         
-        # Convert to simple list of records
-        for idx, row in hourly_data.iterrows():
-            try:
-                date_part = idx.date()
-                hour_part = idx.hour
-                
-                # Skip non-market hours
-                if hour_part < 9 or hour_part > 16:
-                    continue
-                
-                # Calculate hourly return
-                if len(hourly_list) > 0:
-                    prev_close = hourly_list[-1]['close']
-                    hourly_return = ((row['Close'] - prev_close) / prev_close) * 100
-                else:
-                    hourly_return = 0
-                
-                # Find matching daily data
-                day_type = 'UNKNOWN'
-                daily_return = 0
-                
-                for daily_idx, daily_row in daily_data.iterrows():
-                    if daily_idx.date() == date_part:
-                        day_type = daily_row['Day_Type']
-                        daily_return = daily_row['Daily_Return']
-                        break
-                
-                if day_type != 'UNKNOWN':
-                    hourly_list.append({
-                        'date': date_part,
-                        'hour': hour_part,
-                        'close': row['Close'],
-                        'hourly_return': hourly_return,
-                        'day_type': day_type,
-                        'daily_return': daily_return
-                    })
-                    
-            except Exception as e:
-                continue  # Skip problematic rows
-        
-        # Convert to DataFrame
-        if len(hourly_list) == 0:
-            return None, daily_std, "No valid hourly data processed"
-        
-        market_hours = pd.DataFrame(hourly_list)
-        
-        # Add standard deviation buckets
-        market_hours['abs_daily_return'] = np.abs(market_hours['daily_return'])
-        
-        # Simple bucket classification
-        def classify_volatility(abs_return):
-            if abs_return <= daily_std:
-                return '0-1σ'
-            elif abs_return <= 2 * daily_std:
-                return '1-2σ'
-            elif abs_return <= 3 * daily_std:
-                return '2-3σ'
-            else:
-                return '3σ+'
-        
-        market_hours['std_bucket'] = market_hours['abs_daily_return'].apply(classify_volatility)
-        
-        st.success(f"✅ Processed {len(market_hours)} market hours")
-        
-        return market_hours, daily_std, None
-        
-    except Exception as e:
-        return None, None, f"Processing error: {str(e)}"
-
-def analyze_steves_questions(market_hours, daily_std):
-    """Answer Steve's specific questions"""
-    
-    results = {
-        'daily_std': daily_std,
-        'total_hours': len(market_hours)
-    }
-    
-    # 1. Up vs Down days hourly analysis
-    up_down_analysis = {}
-    
-    for hour in range(9, 17):
-        hour_data = market_hours[market_hours['hour'] == hour]
-        up_data = hour_data[hour_data['day_type'] == 'UP']['hourly_return']
-        down_data = hour_data[hour_data['day_type'] == 'DOWN']['hourly_return']
-        
-        up_down_analysis[f"{hour}:00"] = {
-            'up_avg': up_data.mean() if len(up_data) > 0 else 0,
-            'down_avg': down_data.mean() if len(down_data) > 0 else 0,
-            'up_count': len(up_data),
-            'down_count': len(down_data)
-        }
-    
-    results['hourly_comparison'] = up_down_analysis
-    
-    # 2. Standard deviation bucket analysis
-    bucket_analysis = {}
-    
-    for bucket in ['0-1σ', '1-2σ', '2-3σ', '3σ+']:
-        bucket_data = market_hours[market_hours['std_bucket'] == bucket]
-        
-        if len(bucket_data) > 0:
-            bucket_analysis[bucket] = {
-                'total_hours': len(bucket_data),
-                'avg_hourly_return': bucket_data['hourly_return'].mean(),
-                'up_days': len(bucket_data[bucket_data['day_type'] == 'UP']),
-                'down_days': len(bucket_data[bucket_data['day_type'] == 'DOWN'])
-            }
-    
-    results['bucket_analysis'] = bucket_analysis
-    
-    # 3. Bell curve analysis
-    daily_returns = market_hours.groupby('date')['daily_return'].first()
-    
-    coverage_1sigma = len(daily_returns[np.abs(daily_returns) <= daily_std]) / len(daily_returns) * 100
-    coverage_2sigma = len(daily_returns[np.abs(daily_returns) <= 2*daily_std]) / len(daily_returns) * 100
-    coverage_3sigma = len(daily_returns[np.abs(daily_returns) <= 3*daily_std]) / len(daily_returns) * 100
-    
-    results['bell_curve'] = {
-        '1_sigma': coverage_1sigma,
-        '2_sigma': coverage_2sigma,
-        '3_sigma': coverage_3sigma
-    }
-    
-    # 4. Key insights
-    results['insights'] = {
-        'avg_hourly_move': market_hours['hourly_return'].abs().mean(),
-        'up_day_bias': market_hours[market_hours['day_type'] == 'UP']['hourly_return'].mean(),
-        'down_day_bias': market_hours[market_hours['day_type'] == 'DOWN']['hourly_return'].mean()
-    }
-    
-    return results
-
-def create_simple_visualizations(results, market_hours):
-    """Create simple but effective visualizations"""
-    
-    st.header("📊 Steve's Analysis Results")
-    
-    # Key metrics
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Daily Std Dev", f"{results['daily_std']:.2f}%")
-    
-    with col2:
-        st.metric("Total Hours", f"{results['total_hours']:,}")
-    
-    with col3:
-        up_bias = results['insights']['up_day_bias']
-        st.metric("Up Day Bias", f"{up_bias:+.3f}%")
-    
-    with col4:
-        avg_move = results['insights']['avg_hourly_move']
-        st.metric("Avg Hourly Move", f"{avg_move:.3f}%")
-    
-    # Up vs Down comparison chart
-    st.subheader("📈 Up Days vs Down Days Hourly Performance")
-    
-    hours = list(range(9, 17))
-    up_avgs = [results['hourly_comparison'][f"{h}:00"]['up_avg'] for h in hours]
-    down_avgs = [results['hourly_comparison'][f"{h}:00"]['down_avg'] for h in hours]
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=[f"{h}:00" for h in hours], y=up_avgs, 
-                            mode='lines+markers', name='Up Days', line=dict(color='green', width=3)))
-    fig.add_trace(go.Scatter(x=[f"{h}:00" for h in hours], y=down_avgs, 
-                            mode='lines+markers', name='Down Days', line=dict(color='red', width=3)))
-    
-    fig.update_layout(title="Average Hourly Returns: Up Days vs Down Days",
-                      xaxis_title="Hour", yaxis_title="Average Hourly Return (%)")
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Bell curve comparison
-    st.subheader("🔔 Bell Curve Reality Check")
-    
-    categories = ['1σ Coverage', '2σ Coverage', '3σ Coverage']
-    actual = [results['bell_curve']['1_sigma'], results['bell_curve']['2_sigma'], results['bell_curve']['3_sigma']]
-    theoretical = [68.27, 95.45, 99.73]
-    
-    fig2 = go.Figure(data=[
-        go.Bar(name='Actual SPY', x=categories, y=actual, marker_color='skyblue'),
-        go.Bar(name='Theoretical', x=categories, y=theoretical, marker_color='orange')
-    ])
-    
-    fig2.update_layout(title="SPY vs Normal Distribution Coverage", barmode='group')
-    st.plotly_chart(fig2, use_container_width=True)
-    
-    # Standard deviation buckets
-    st.subheader("📊 Performance by Volatility Buckets")
-    
-    for bucket, data in results['bucket_analysis'].items():
-        with st.expander(f"{bucket} Days"):
-            col1, col2, col3, col4 = st.columns(4)
+        for idx, row in hourly.iterrows():
+            hour = idx.hour
+            date = idx.date()
             
-            with col1:
-                st.metric("Total Hours", f"{data['total_hours']:,}")
-            with col2:
-                st.metric("Avg Return", f"{data['avg_hourly_return']:+.3f}%")
-            with col3:
-                st.metric("Up Days", f"{data['up_days']:,}")
-            with col4:
-                st.metric("Down Days", f"{data['down_days']:,}")
-    
-    # Detailed hourly comparison table
-    st.subheader("📋 Detailed Hourly Breakdown")
-    
-    table_data = []
-    for hour in range(9, 17):
-        hour_str = f"{hour}:00"
-        data = results['hourly_comparison'][hour_str]
-        table_data.append({
-            'Hour': hour_str,
-            'Up Days Avg': f"{data['up_avg']:+.3f}%",
-            'Down Days Avg': f"{data['down_avg']:+.3f}%",
-            'Difference': f"{data['up_avg'] - data['down_avg']:+.3f}%",
-            'Up Count': data['up_count'],
-            'Down Count': data['down_count']
-        })
-    
-    st.dataframe(pd.DataFrame(table_data), use_container_width=True)
+            # Only market hours
+            if hour < 9 or hour > 16:
+                continue
+            
+            # Calculate hourly return
+            if prev_close is not None:
+                hourly_return = ((row['Close'] - prev_close) / prev_close) * 100
+            else:
+                hourly_return = 0
+            
+            # Find matching daily data
+            daily_match = daily[daily.index.date == date]
+            if len(daily_match) > 0:
+                daily_info = daily_match.iloc[0]
+                
+                # Standard deviation bucket
+                abs_daily_return = abs(daily_info['Daily_Return'])
+                if abs_daily_return <= daily_std:
+                    bucket = '0-1σ (Normal)'
+                elif abs_daily_return <= 2 * daily_std:
+                    bucket = '1-2σ (Moderate)'
+                elif abs_daily_return <= 3 * daily_std:
+                    bucket = '2-3σ (High Vol)'
+                else:
+                    bucket = '3σ+ (Extreme)'
+                
+                results.append({
+                    'hour': hour,
+                    'hourly_return': hourly_return,
+                    'day_type': daily_info['Day_Type'],
+                    'daily_return': daily_info['Daily_Return'],
+                    'volatility_bucket': bucket
+                })
+            
+            prev_close = row['Close']
+        
+        return pd.DataFrame(results), daily_std
+    except:
+        return None, None
 
 def main():
-    """Main application - SIMPLE VERSION THAT WORKS"""
+    st.title("📊 SPY Hourly Pattern Research")
+    st.markdown("**Simple analysis answering 4 key questions about SPY intraday behavior**")
     
-    st.title("📊 Steve's SPY Statistical Analysis")
-    st.markdown("*Bulletproof Version - Answers Steve's Questions About Hourly Patterns*")
+    # Show exactly what questions we answer
+    st.markdown("---")
+    st.markdown("### 🎯 **Research Questions This Answers:**")
     
-    st.info("""
-    **What This Analyzes:**
-    - ✅ Up days vs down days hourly performance
-    - ✅ Standard deviation buckets (1σ, 2σ, 3σ+)
-    - ✅ Bell curve analysis vs theory
-    - ✅ "Small moves" validation
-    - ✅ 5 years of statistical context
+    st.markdown("""
+    **Question 1:** Do up days and down days show different hourly patterns?
+    
+    **Question 2:** How do hourly patterns change during high vs low volatility days?
+    
+    **Question 3:** Are hourly moves really small compared to daily moves?
+    
+    **Question 4:** Does SPY follow the normal distribution "bell curve"?
     """)
     
-    # Simple single button approach
-    if st.button("🚀 Run Steve's Analysis", type="primary", use_container_width=True):
+    st.markdown("---")
+    
+    # Simple run button
+    if st.button("📊 **ANALYZE SPY DATA**", type="primary"):
         
-        with st.spinner("Fetching and analyzing SPY data..."):
+        with st.spinner("Getting SPY data and analyzing patterns..."):
             
-            # Step 1: Fetch data
-            daily_data, hourly_data, error = fetch_spy_data()
-            
-            if error:
-                st.error(f"❌ {error}")
-                st.info("This usually happens due to Yahoo Finance issues. Try again in a few minutes.")
+            # Get data
+            daily, hourly = fetch_data()
+            if daily is None:
+                st.error("❌ Could not get data. Try again later.")
                 return
             
-            if daily_data is None or hourly_data is None:
-                st.error("❌ Failed to fetch required data")
+            # Process data
+            data, daily_std = process_data(daily, hourly)
+            if data is None:
+                st.error("❌ Could not process data. Try again later.")
                 return
             
-            # Step 2: Process data
-            market_hours, daily_std, error = process_data_simple(daily_data, hourly_data)
+            st.success("✅ Analysis complete! Here are the answers:")
             
-            if error:
-                st.error(f"❌ {error}")
-                return
-            
-            if market_hours is None:
-                st.error("❌ Failed to process data")
-                return
-            
-            # Step 3: Analyze
-            results = analyze_steves_questions(market_hours, daily_std)
-            
-            # Step 4: Display results
-            create_simple_visualizations(results, market_hours)
-            
-            # Steve's key insights
-            st.header("💡 Key Findings for Steve")
-            
-            insights = results['insights']
-            bell = results['bell_curve']
-            
-            st.success(f"""
-            **Steve's "Small Moves" Question**: ✅ CONFIRMED
-            - Average hourly move: **{insights['avg_hourly_move']:.3f}%** (very small!)
-            - Up day hourly bias: **{insights['up_day_bias']:+.3f}%**
-            - Down day hourly bias: **{insights['down_day_bias']:+.3f}%**
-            """)
-            
-            st.info(f"""
-            **Bell Curve Reality Check**:
-            - Within 1σ: **{bell['1_sigma']:.1f}%** (Theory: 68.3%)
-            - Within 2σ: **{bell['2_sigma']:.1f}%** (Theory: 95.5%) 
-            - Within 3σ: **{bell['3_sigma']:.1f}%** (Theory: 99.7%)
-            """)
-            
-            # Data summary
+            # ANSWER 1: Up vs Down Days
             st.markdown("---")
+            st.markdown("### 📈 **ANSWER 1: Up Days vs Down Days**")
+            st.markdown("*Do up days and down days show different hourly patterns?*")
+            
+            # Simple comparison
+            up_data = data[data['day_type'] == 'UP']
+            down_data = data[data['day_type'] == 'DOWN']
+            
+            up_avg = up_data['hourly_return'].mean()
+            down_avg = down_data['hourly_return'].mean()
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Up Days Average", f"{up_avg:+.3f}%", help="Average hourly return on up days")
+            with col2:
+                st.metric("Down Days Average", f"{down_avg:+.3f}%", help="Average hourly return on down days")
+            with col3:
+                difference = up_avg - down_avg
+                st.metric("Difference", f"{difference:+.3f}%", help="How much better up days perform")
+            
+            if abs(difference) > 0.01:
+                st.info(f"✅ **Answer:** YES - Up days average {difference:+.3f}% better per hour than down days")
+            else:
+                st.info("✅ **Answer:** NO significant difference - both types of days show similar hourly patterns")
+            
+            # ANSWER 2: Volatility Buckets
+            st.markdown("---")
+            st.markdown("### ⚡ **ANSWER 2: High vs Low Volatility Days**")
+            st.markdown("*How do hourly patterns change during high vs low volatility days?*")
+            
+            # Show volatility bucket performance
+            bucket_stats = data.groupby('volatility_bucket')['hourly_return'].agg(['mean', 'count']).round(3)
+            
+            st.markdown("**Average hourly returns by volatility level:**")
+            for bucket, stats in bucket_stats.iterrows():
+                if stats['count'] > 10:  # Only show buckets with enough data
+                    st.write(f"• **{bucket}**: {stats['mean']:+.3f}% per hour ({int(stats['count'])} hours)")
+            
+            normal_avg = bucket_stats.loc['0-1σ (Normal)', 'mean'] if '0-1σ (Normal)' in bucket_stats.index else 0
+            high_vol_buckets = [b for b in bucket_stats.index if '2-3σ' in b or '3σ+' in b]
+            
+            if high_vol_buckets:
+                high_vol_avg = bucket_stats.loc[high_vol_buckets[0], 'mean']
+                if abs(high_vol_avg - normal_avg) > 0.02:
+                    st.info(f"✅ **Answer:** YES - High volatility days show different patterns ({high_vol_avg:+.3f}% vs {normal_avg:+.3f}%)")
+                else:
+                    st.info("✅ **Answer:** NO major difference - volatility level doesn't significantly change hourly patterns")
+            
+            # ANSWER 3: Small Moves
+            st.markdown("---")
+            st.markdown("### 🔍 **ANSWER 3: Are Hourly Moves Small?**")
+            st.markdown("*Are hourly moves really small compared to daily moves?*")
+            
+            avg_hourly_move = data['hourly_return'].abs().mean()
+            avg_daily_move = daily['Daily_Return'].abs().mean()
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Average Hourly Move", f"{avg_hourly_move:.3f}%")
+            with col2:
+                st.metric("Average Daily Move", f"{avg_daily_move:.2f}%")
+            with col3:
+                ratio = avg_daily_move / avg_hourly_move if avg_hourly_move > 0 else 0
+                st.metric("Daily is X times bigger", f"{ratio:.1f}x")
+            
+            if avg_hourly_move < 0.2:
+                st.info(f"✅ **Answer:** YES - Hourly moves are very small ({avg_hourly_move:.3f}% average)")
+            else:
+                st.info(f"✅ **Answer:** NO - Hourly moves are not that small ({avg_hourly_move:.3f}% average)")
+            
+            # ANSWER 4: Bell Curve
+            st.markdown("---")
+            st.markdown("### 🔔 **ANSWER 4: Does SPY Follow the Bell Curve?**")
+            st.markdown("*Does SPY follow the normal distribution theory?*")
+            
+            # Calculate bell curve coverage
+            daily_returns = daily['Daily_Return']
+            
+            within_1sigma = len(daily_returns[abs(daily_returns) <= daily_std]) / len(daily_returns) * 100
+            within_2sigma = len(daily_returns[abs(daily_returns) <= 2*daily_std]) / len(daily_returns) * 100
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Within 1σ (Normal range)", f"{within_1sigma:.1f}%", f"Theory: 68.3%")
+            with col2:
+                st.metric("Within 2σ (Wider range)", f"{within_2sigma:.1f}%", f"Theory: 95.4%")
+            
+            if abs(within_1sigma - 68.3) < 5:
+                st.info("✅ **Answer:** YES - SPY closely follows the normal bell curve distribution")
+            else:
+                st.info(f"✅ **Answer:** NO - SPY deviates from normal distribution ({within_1sigma:.1f}% vs expected 68.3%)")
+            
+            # Simple summary
+            st.markdown("---")
+            st.markdown("### 📋 **SUMMARY**")
+            
             st.info(f"""
-            **📊 Analysis Summary:**
-            - **Daily Standard Deviation**: {daily_std:.2f}%
-            - **Total Hours Analyzed**: {results['total_hours']:,} market hours
-            - **Data Period**: 5 years daily + 6 months hourly
-            - **Data Source**: Yahoo Finance
+            **Data analyzed:** {len(data):,} hours across {len(daily):,} days
+            
+            **Daily standard deviation:** {daily_std:.2f}% (this is what we use for volatility buckets)
+            
+            **Key insight:** Average hourly move is {avg_hourly_move:.3f}% vs {avg_daily_move:.2f}% daily
             """)
     
     # Footer
     st.markdown("---")
-    st.markdown("""
-    <div style='text-align: center; color: #666;'>
-    Steve's SPY Analysis Tool | Simple, Reliable, No KeyErrors
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; color: #666; font-size: 0.8em;'>Simple SPY Pattern Analysis | Data from Yahoo Finance</div>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
