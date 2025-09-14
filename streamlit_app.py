@@ -226,6 +226,23 @@ def main():
             with col2:
                 st.metric("Within 2σ (Wider range)", f"{within_2sigma:.1f}%", f"Theory: 95.4%")
             
+            # Bell curve comparison chart
+            categories = ['Within 1σ\n(68% should be here)', 'Within 2σ\n(95% should be here)']
+            actual_values = [within_1sigma, within_2sigma]
+            theoretical_values = [68.3, 95.4]
+            
+            fig4 = go.Figure(data=[
+                go.Bar(name='SPY Reality', x=categories, y=actual_values, marker_color='skyblue'),
+                go.Bar(name='Theory', x=categories, y=theoretical_values, marker_color='orange')
+            ])
+            fig4.update_layout(
+                title="SPY vs Bell Curve Theory",
+                yaxis_title="Percentage of Days (%)",
+                barmode='group',
+                height=400
+            )
+            st.plotly_chart(fig4, use_container_width=True)
+            
             if abs(within_1sigma - 68.3) < 5:
                 st.info("✅ **Answer:** YES - SPY closely follows the normal bell curve distribution")
             else:
